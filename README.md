@@ -1,4 +1,4 @@
-🌟 Download Internet Video v0.7182 - Universal Video/Audio Downloader
+🌟 Download Internet Video - Universal Video/Audio Downloader
 
 🌐 Supported Platforms:
 
