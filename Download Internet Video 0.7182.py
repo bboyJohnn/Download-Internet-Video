@@ -1,8 +1,8 @@
 import os
 import sys
+import tempfile
 import time
 import json
-import yt_dlp
 import subprocess
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
@@ -17,6 +17,17 @@ from PyQt5.QtWidgets import QGraphicsDropShadowEffect
 from PyQt5.QtCore import QObject, pyqtSignal
 from PyQt5.QtCore import QSettings
 
+# Добавляем путь к ffmpeg в PATH перед импортом yt-dlp
+if getattr(sys, 'frozen', False):
+    base_dir = sys._MEIPASS
+else:
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+
+ffmpeg_path = os.path.join(base_dir, 'ffmpeg')
+if os.path.exists(ffmpeg_path):
+    os.environ['PATH'] = ffmpeg_path + os.pathsep + os.environ['PATH']
+
+import yt_dlp
 
 class EmittingStream(QObject):
     textWritten = pyqtSignal(str)
@@ -59,6 +70,32 @@ class DownloadWorker(QThread):
                 'merge_output_format': self.video_format if self.media_type == "Video" else self.audio_format
             }
 
+            # Обработка кукисов в EXE-режиме
+            if self.use_cookies and self.browser != "Disabled":
+                browser_name = self.browser.lower()
+                try:
+                    # Для EXE-сборки используем временную папку для кукисов
+                    if getattr(sys, 'frozen', False):
+                        cookies_dir = os.path.join(sys._MEIPASS, 'cookies_temp')
+                        os.makedirs(cookies_dir, exist_ok=True)
+                        cookie_file = os.path.join(cookies_dir, f'{browser_name}_cookies.txt')
+                        ydl_opts['cookiefile'] = cookie_file
+                    
+                    ydl_opts['cookiesfrombrowser'] = (browser_name,)
+                    self.log_signal.emit(f"Using cookies from browser: {browser_name}")
+                except Exception as e:
+                    self.log_signal.emit(f"Error setting cookies: {str(e)}")
+                    # Fallback для извлечения кукисов
+                    try:
+                        import browser_cookie3
+                        cj = getattr(browser_cookie3, browser_name)()
+                        cookie_file = os.path.join(tempfile.gettempdir(), 'yt_dlp_cookies.txt')
+                        cj.save(cookie_file)
+                        ydl_opts['cookiefile'] = cookie_file
+                        self.log_signal.emit(f"Used fallback cookie method: {cookie_file}")
+                    except Exception as fallback_e:
+                        self.log_signal.emit(f"Fallback cookie error: {str(fallback_e)}")
+
             if self.media_type == "Video":
                 if self.resolution == "Original":
                     format_str = f"bestvideo[ext={self.video_format}]+bestaudio/bestvideo+bestaudio"
@@ -99,14 +136,6 @@ class DownloadWorker(QThread):
                     self.filename = d.get('filename', '')
 
             ydl_opts['postprocessor_hooks'] = [postprocessor_hook]
-
-            if self.use_cookies and self.browser != "Disabled":
-                browser_name = self.browser.lower()
-                try:
-                    ydl_opts['cookiesfrombrowser'] = (browser_name,)
-                    self.log_signal.emit(f"Using cookies from browser: {browser_name}")
-                except Exception as e:
-                    self.log_signal.emit(f"Error setting cookies: {str(e)}")
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 self.log_signal.emit(f"Starting download in format: {self.video_format if self.media_type == 'Video' else self.audio_format}")
@@ -860,10 +889,17 @@ class YouTubeDownloader(QMainWindow):
         self.show_notifications = True
         self.play_sound = True
 
+        # Настройка перенаправления stdout/stderr
         sys.stdout = EmittingStream()
         sys.stderr = EmittingStream()
         sys.stdout.textWritten.connect(self.append_log)
         sys.stderr.textWritten.connect(self.append_log)
+
+        # Инициализация временной папки для кукисов после создания логов
+        if getattr(sys, 'frozen', False):
+            self.cookies_dir = os.path.join(sys._MEIPASS, 'cookies_temp')
+            os.makedirs(self.cookies_dir, exist_ok=True)
+            self.log(f"Created cookies temp dir: {self.cookies_dir}")
 
     def tr(self, text):
         """Translate text using current translations"""
@@ -1110,6 +1146,20 @@ class YouTubeDownloader(QMainWindow):
         
         browser_combo = self.video_browser_combo if media_type == "Video" else self.audio_browser_combo
         
+        # Проверка доступности браузера для кукисов
+        browser_name = browser_combo.currentText().lower()
+        if browser_combo.currentText() != self.tr("Disabled") and getattr(sys, 'frozen', False):
+            try:
+                # Проверяем, доступен ли браузер в EXE-режиме
+                import browser_cookie3
+                browser_module = getattr(browser_cookie3, browser_name, None)
+                if not browser_module:
+                    QMessageBox.warning(self, self.tr("Warning"), 
+                                        self.tr(f"Browser {browser_name} is not supported in portable mode"))
+                    return
+            except ImportError:
+                self.log(f"browser_cookie3 not available in portable mode")
+        
         if media_type == "Video":
             item_widget = DownloadItemWidget(self.tr("Preparing download..."), media_type)
             list_item = QListWidgetItem()
@@ -1121,7 +1171,7 @@ class YouTubeDownloader(QMainWindow):
             worker = DownloadWorker(
                 url=url,
                 use_cookies=browser_combo.currentText() != self.tr("Disabled"),
-                browser=browser_combo.currentText().lower(),
+                browser=browser_name,
                 media_type="Video",
                 resolution=self.resolution_combo.currentText(),
                 video_format=self.video_format_combo.currentText(),
@@ -1143,7 +1193,7 @@ class YouTubeDownloader(QMainWindow):
             worker = DownloadWorker(
                 url=url,
                 use_cookies=browser_combo.currentText() != self.tr("Disabled"),
-                browser=browser_combo.currentText().lower(),
+                browser=browser_name,
                 media_type="Audio",
                 resolution="",
                 video_format="",
