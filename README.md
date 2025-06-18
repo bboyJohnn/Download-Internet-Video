@@ -1,51 +1,45 @@
-🌟 Download Internet Video - Universal Video/Audio Downloader
+Download Internet Video - Ultimate Video/Audio Downloader
+🚀 The most powerful and user-friendly YouTube & media downloader with browser integration, format conversion, and multilingual support!
 
-🌐 Supported Platforms:
+✨ Key Features
+📥 Universal Downloader
+✅ Supports 1000+ sites: YouTube, TikTok, Instagram, VK, Twitter (X), Facebook, Twitch, and more!
+✅ Batch downloads: Grab entire playlists, channels, or user uploads in one click.
+✅ Age-restricted & private videos: Log in with browser cookies to bypass restrictions.
 
-YouTube, Vimeo, TikTok, Twitter, 1000+ sites (via yt-dlp)
+🎛️ Advanced Format Control
+🎬 Video: Download in MP4, WEBM, MKV, AVI, MOV, FLV
+🎵 Audio: Extract high-quality MP3, M4A, WAV, AAC, FLAC, OPUS
+📏 Resolution options: From 144p to 8K (4320p) or original quality
+⚡ Smart conversion: Automatically merge video + audio streams
 
-🎥 Video in Any Quality
+🔒 Browser Integration
+🛡️ Supports Chrome, Firefox, Edge, Opera, Brave
+🔑 Auto-imports cookies to download private/restricted content
+🌐 10+ languages: English, Russian, Spanish, French, German, Chinese, and more!
 
-Supports resolutions from 144p to 4K (4320p)
-Formats: MP4, WebM, MKV, AVI, MOV, FLV
+⚡ Optimized Performance
+🚀 Lightning-fast downloads with multi-threading
+📂 Custom output folder
+🔔 Notifications & sound alerts when downloads finish
+📜 Detailed logs for debugging
 
-🎵 Audio Extraction
+📦 Installation
+Windows (Portable EXE)
+Download the latest .exe from Releases.
 
-MP3, M4A, WAV, AAC, FLAC, Opus, and more
-Up to 192 kbps quality
+🛠️ Built With
+Python 3 + PyQt5 (Modern UI)
+yt-dlp (Best YouTube downloader engine)
+browser-cookie3 (Secure cookie handling)
+FFmpeg (Seamless format conversion)
 
-🔒 Premium Content Access
+📜 License
+MIT License - Free for personal and commercial use.
+📥 Download Now!
+🔗 Latest Release
 
-Import cookies from browsers: Chrome, Firefox, Edge, Opera, Brave
-Download private/restricted videos
+💬 Have suggestions? Open an Issue or Pull Request!
 
-🚀 Smart Download System
-
-Parallel downloads with visual progress
-Task management: pause/resume/cancel
-Automatic post-download conversion
-
-🌍 Multilingual Interface
-
-10+ languages: English, Russian, Spanish, French, and more
-Automatic language preference saving
-
-📥 How to Use:
-
-Paste the URL in the "Link" field
-
-Select content type (🎬 Video / 🎵 Audio)
-
-Configure settings (quality, format, cookies)
-Click the download button!
-Manage tasks in the "Active Downloads" tab
-
-🚀 Architectural Highlights:
-
-Multithreading (QThread)
-Custom widgets with animations
-JSON-based translation system
-Persistent settings across sessions
-Error handling and duplicate file resolution
-
+⭐ Star the repo if you love it! ⭐
 
