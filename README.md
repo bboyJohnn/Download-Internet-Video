@@ -1,80 +1,59 @@
-Download Internet Video - Ultimate Video/Audio Downloader
+# [SYSTEM_INFO] Download-Internet-Video
+> Version: 1.0.0
+> Status: OPERATIONAL
 
-🚀 The most powerful and user-friendly YouTube & media downloader with browser integration, format conversion, and multilingual support!
+---
 
+### // OVERVIEW
+The most powerful and user-friendly YouTube & media downloader with browser integration, format conversion, and multilingual support. Built for speed and reliability.
 
-✨ Key Features
+[![Python](https://img.shields.io/badge/PYTHON-3-00ffff?style=flat-square)](https://www.python.org/)
+[![License](https://img.shields.io/badge/LICENSE-MIT-ff00ff?style=flat-square)](https://github.com/bboyJohnn/Download-Internet-Video/blob/main/LICENSE)
 
-📥 Universal Downloader
+---
 
-✅ Supports 1000+ sites: YouTube, TikTok, Instagram, VK, Twitter (X), Facebook, Twitch, and more!
+### // MODULES_AND_CAPABILITIES
 
-✅ Batch downloads: Grab entire playlists, channels, or user uploads in one click.
+#### 📥 Universal Downloader
+* **Site Support**: 1000+ platforms including YouTube, TikTok, Instagram, VK, Twitter (X), Facebook, and Twitch.
+* **Batch Processing**: Grab entire playlists, channels, or user archives in one click.
+* **Access Control**: Built-in cookie import system to bypass age-restricted or private content.
 
-✅ Age-restricted & private videos: Log in with browser cookies to bypass restrictions.
+#### 🎛️ Advanced Media Processing
+* **Video Formats**: MP4, WEBM, MKV, AVI, MOV, FLV.
+* **Audio Extraction**: MP3, M4A, WAV, AAC, FLAC, OPUS.
+* **Resolution**: Scalable from 144p to 8K (4320p).
+* **Smart Conversion**: Automated stream merging via FFmpeg.
 
+#### 🛡️ Integration & Performance
+* **Browser Sync**: Full support for Chrome, Firefox, Edge, Opera, and Brave.
+* **Localization**: Multilingual support (10+ languages).
+* **Speed**: Optimized multi-threaded engine.
+* **Diagnostics**: Real-time logging and event notifications.
 
+---
 
-🎛️ Advanced Format Control
-🎬 Video: Download in MP4, WEBM, MKV, AVI, MOV, FLV
+### // INSTALLATION
+**Target:** Windows (Portable Executable)
+1. Navigate to the [Releases](https://github.com/bboyJohnn/Download-Internet-Video/releases) section.
+2. Download the latest `.exe` binary.
+3. Execute and initialize.
 
-🎵 Audio: Extract high-quality MP3, M4A, WAV, AAC, FLAC, OPUS
+---
 
-📏 Resolution options: From 144p to 8K (4320p) or original quality
+### // TECH_STACK
+| Component | Function |
+| :--- | :--- |
+| **Python 3 / PyQt5** | GUI Framework |
+| **yt-dlp** | Extraction Engine |
+| **browser-cookie3** | Auth Handling |
+| **FFmpeg** | Media Processing |
 
-⚡ Smart conversion: Automatically merge video + audio streams
+---
 
+### // CONTRIBUTING
+* **Suggestions**: Open an Issue.
+* **Development**: Pull Requests are welcome.
+* **Feedback**: Star this repository if you find the tool useful.
 
-
-🔒 Browser Integration
-
-🛡️ Supports Chrome, Firefox, Edge, Opera, Brave
-
-🔑 Auto-imports cookies to download private/restricted content
-
-🌐 10+ languages: English, Russian, Spanish, French, German, Chinese, and more!
-
-
-
-⚡ Optimized Performance
-
-🚀 Lightning-fast downloads with multi-threading
-
-📂 Custom output folder
-
-🔔 Notifications & sound alerts when downloads finish
-
-📜 Detailed logs for debugging
-
-
-
-📦 Installation
-
-Windows (Portable EXE)
-
-Download the latest .exe from Releases.
-
-
-
-🛠️ Built With
-
-Python 3 + PyQt5 (Modern UI)
-
-yt-dlp (Best YouTube downloader engine)
-
-browser-cookie3 (Secure cookie handling)
-
-FFmpeg (Seamless format conversion)
-
-
-
-📜 License
-
-MIT License - Free for personal and commercial use.
-
-
-💬 Have suggestions? Open an Issue or Pull Request!
-
-
-⭐ Star the repo if you love it! ⭐
-
+> `[END_OF_DOCUMENT]`
