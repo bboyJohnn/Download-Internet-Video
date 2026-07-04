@@ -1,45 +1,70 @@
 """
-Tool Management - Check and install ffmpeg, yt-dlp
+Tool Management - Check and install ffmpeg, yt-dlp, Deno
 """
 import os
-import sys
 from PyQt5.QtWidgets import QMessageBox
-from ui.dialogs import ToolInstallDialog
+
+import config
 
 
-def check_and_install_tools(parent, base_dir, local_ffmpeg_bin, local_ffmpeg_exe, ytdlp_candidates):
+def tools_status():
+    """Return (ffmpeg_present, ytdlp_present, deno_present) based on config"""
+    ffmpeg_present = os.path.exists(config.LOCAL_FFMPEG_EXE)
+    ytdlp_present = config.YTDLP_MODULE or (
+        config.YTDLP_EXE is not None and os.path.exists(config.YTDLP_EXE))
+    deno_present = config.DENO_EXE is not None and os.path.exists(config.DENO_EXE)
+    return ffmpeg_present, ytdlp_present, deno_present
+
+
+def check_and_install_tools(parent, base_dir):
     """
-    Check presence of local ffmpeg and yt-dlp; offer to download missing ones.
-    
+    Check presence of local ffmpeg, yt-dlp and Deno; offer to download missing ones.
+
     Args:
         parent: Parent widget for message boxes
-        base_dir: Application base directory
-        local_ffmpeg_bin: Path to ffmpeg/bin directory
-        local_ffmpeg_exe: Path to ffmpeg executable
-        ytdlp_candidates: List of possible yt-dlp locations
+        base_dir: Persistent application directory (tools are installed here)
     """
-    ffmpeg_present = os.path.exists(local_ffmpeg_exe)
-    ytdlp_present = any(os.path.exists(p) for p in ytdlp_candidates)
+    # Imported lazily to avoid a circular import (ui imports core.tools)
+    from ui.dialogs import ToolInstallDialog
 
-    # If both present — just inform and return
-    if ffmpeg_present and ytdlp_present:
-        QMessageBox.information(parent, "Tools", "ffmpeg and yt-dlp are present in application folder.")
+    tr = getattr(parent, 'tr', None) or (lambda s: s)
+
+    ffmpeg_present, ytdlp_present, deno_present = tools_status()
+
+    if ffmpeg_present and ytdlp_present and deno_present:
+        QMessageBox.information(parent, tr("Tools"),
+                                tr("ffmpeg, yt-dlp and Deno are present in the application folder."))
         return
 
-    # Automatically start installer dialog for missing tools
     dlg = ToolInstallDialog(
         base_dir=base_dir,
         install_ffmpeg=(not ffmpeg_present),
         install_ytdlp=(not ytdlp_present),
-        parent=parent
+        install_deno=(not deno_present),
+        parent=parent,
+        tr=tr
     )
     dlg.exec_()
 
-    # After dialog closed, ensure PATH updated
-    if os.path.exists(local_ffmpeg_bin):
-        os.environ['PATH'] = local_ffmpeg_bin + os.pathsep + os.environ.get('PATH', '')
+    # Pick up freshly installed tools without restarting
+    config.refresh_tools()
+    if os.path.exists(config.LOCAL_FFMPEG_BIN):
+        os.environ['PATH'] = config.LOCAL_FFMPEG_BIN + os.pathsep + os.environ.get('PATH', '')
 
-    QMessageBox.information(parent, "Restart Required", "Installation finished. Please restart the application to apply changes.")
+    ffmpeg_present, ytdlp_present, deno_present = tools_status()
+    if ffmpeg_present and ytdlp_present and deno_present:
+        QMessageBox.information(parent, tr("Tools"),
+                                tr("All tools are installed and ready to use."))
+    else:
+        missing = [name for name, ok in (("ffmpeg", ffmpeg_present),
+                                         ("yt-dlp", ytdlp_present),
+                                         ("Deno", deno_present)) if not ok]
+        try:
+            msg = tr("Some tools are still missing: {names}. Downloads may not "
+                     "work until they are installed.").format(names=", ".join(missing))
+        except Exception:
+            msg = "Some tools are still missing: " + ", ".join(missing)
+        QMessageBox.warning(parent, tr("Tools"), msg)
 
 
-__all__ = ['check_and_install_tools']
+__all__ = ['check_and_install_tools', 'tools_status']

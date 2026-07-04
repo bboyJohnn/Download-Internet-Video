@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.spec
+
+# Builds
+dist/
+build/
+
+# Bundled tools (downloaded automatically on first run; too big for git)
+runtime/
+ffmpeg/
+deno/
+yt-dlp.exe
+
+# Temp files from tool installs/updates
+*.zip
+*.part
+*.old/
+ffmpeg.extract/
+ffmpeg.new/
+deno.new/
+
+# Local settings
+.claude/
