@@ -8,9 +8,10 @@ import config
 
 
 def tools_status():
-    """Return (ffmpeg_present, ytdlp_present, deno_present) based on config"""
+    """Return (ffmpeg_present, ytdlp_present, deno_present) based on config.
+    Uses the cheap module check so startup never pays the yt_dlp import."""
     ffmpeg_present = os.path.exists(config.LOCAL_FFMPEG_EXE)
-    ytdlp_present = config.YTDLP_MODULE or (
+    ytdlp_present = config.ytdlp_module_available() or (
         config.YTDLP_EXE is not None and os.path.exists(config.YTDLP_EXE))
     deno_present = config.DENO_EXE is not None and os.path.exists(config.DENO_EXE)
     return ffmpeg_present, ytdlp_present, deno_present

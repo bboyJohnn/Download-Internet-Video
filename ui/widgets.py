@@ -1,11 +1,13 @@
 """
 UI Widgets - reusable UI components
 """
+import math
+
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QProgressBar, QGroupBox, QSizePolicy
+    QProgressBar, QGroupBox, QSizePolicy, QToolButton
 )
-from PyQt5.QtCore import Qt, QRectF, QEvent, QPoint
+from PyQt5.QtCore import Qt, QRectF, QEvent, QPoint, QTimer
 from PyQt5.QtGui import QPixmap, QPainter, QPainterPath
 
 import config
@@ -273,45 +275,177 @@ class DownloadItemWidget(QWidget):
         self._set_status("▶", self._tr("Downloading"), "accent")
 
 
-class WaveWidget(QWidget):
-    """Decorative layered waves like on the reference site - the page 'dives'
-    into a deeper background below them. Repaints with the current theme."""
+class BannerWidget(QWidget):
+    """Site-style header: the app title on a colored 'picture', with the
+    reference site's exact 'gentle wave' layers (filled with the page
+    background color) drifting along the bottom edge. The content below
+    sits at the foot of the waves, just like on the site."""
 
-    def __init__(self, parent=None, height=40):
+    def __init__(self, title, parent=None, height=104):
         super().__init__(parent)
+        self._title = title
         self.setFixedHeight(height)
-        self.setAttribute(Qt.WA_TransparentForMouseEvents)
-        self.setAttribute(Qt.WA_TranslucentBackground)
+        self._t = 0.0        # animation clock, seconds
+        self._boost = 0.0    # short burst after a tab switch
+        self._animated = True
+        self._timer = QTimer(self)
+        self._timer.setInterval(40)  # ~25 fps
+        self._timer.timeout.connect(self._tick)
+        self._timer.start()
+
+    def setTitle(self, title):
+        self._title = title
+        self.update()
+
+    def set_animated(self, animated):
+        """Toggle the animation (Settings -> Appearance)"""
+        self._animated = bool(animated)
+        if self._animated:
+            if not self._timer.isActive():
+                self._timer.start()
+        else:
+            self._timer.stop()
+            self._boost = 0.0
+            self.update()
+
+    def splash(self):
+        """React to a tab switch with a short faster-and-taller burst"""
+        if self._animated:
+            self._boost = 1.0
+
+    def _tick(self):
+        self._t += 0.04 * (1.0 + 2.0 * self._boost)
+        if self._boost > 0.01:
+            self._boost *= 0.94
+        else:
+            self._boost = 0.0
+        self.update()
+
+    @staticmethod
+    def _gentle_wave_path():
+        """The exact 'gentle-wave' path used by the reference site:
+        M-160 44 c30 0 58-18 88-18 s58 18 88 18 s58-18 88-18 s58 18 88 18
+        v48 h-352 z  (period 176 units, viewBox '0 20 150 32')"""
+        path = QPainterPath()
+        path.moveTo(-160, 44)
+        path.cubicTo(-130, 44, -102, 26, -72, 26)
+        path.cubicTo(-42, 26, -14, 44, 16, 44)
+        path.cubicTo(46, 44, 74, 26, 104, 26)
+        path.cubicTo(134, 26, 162, 44, 192, 44)
+        path.lineTo(192, 92)
+        path.lineTo(-160, 92)
+        path.closeSubpath()
+        return path
 
     def paintEvent(self, event):
-        from PyQt5.QtGui import QColor
+        from PyQt5.QtGui import QColor, QLinearGradient, QFont
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
-        painter.setPen(Qt.NoPen)
         w, h = self.width(), float(self.height())
-        base = QColor(config.COLOR_PRIMARY)
-        # (alpha, baseline y, amplitude, phase-flip)
-        for alpha, y0, amp, flip in ((0.16, h * 0.30, 9, False),
-                                     (0.28, h * 0.50, 11, True),
-                                     (0.45, h * 0.70, 12, False)):
-            color = QColor(base)
-            color.setAlphaF(alpha)
+        if w <= 0 or h <= 0:
+            return
+
+        clip = QPainterPath()
+        clip.addRoundedRect(QRectF(0, 0, w, h), 12, 12)
+        painter.setClipPath(clip)
+
+        # the banner 'picture': theme-colored gradient with soft light blobs
+        grad = QLinearGradient(0, 0, w, h)
+        grad.setColorAt(0.0, QColor(config.COLOR_PRIMARY_ACTIVE))
+        grad.setColorAt(0.55, QColor(config.COLOR_PRIMARY))
+        grad.setColorAt(1.0, QColor(config.COLOR_BTN_BG_ACTIVE))
+        painter.fillPath(clip, grad)
+
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor(255, 255, 255, 26))
+        painter.drawEllipse(QRectF(w * 0.62, -h * 0.7, h * 1.7, h * 1.7))
+        painter.drawEllipse(QRectF(w * 0.06, h * 0.35, h * 1.1, h * 1.1))
+
+        # title over the picture
+        painter.setPen(QColor(255, 255, 255))
+        title_font = QFont("Segoe UI", 17)
+        title_font.setBold(True)
+        painter.setFont(title_font)
+        painter.drawText(QRectF(0, 0, w, h - 26), Qt.AlignCenter, self._title)
+
+        # gentle waves along the bottom, page-bg colored (site behaviour:
+        # four layers, x-drift -90->85 over 7/10/13/20 s, y offsets 0/3/5/7)
+        wave_h = 30.0 * (1.0 + 0.22 * self._boost)
+        sx = w / 150.0
+        sy = wave_h / 32.0
+        top = h - wave_h
+        base_path = self._gentle_wave_path()
+        page = QColor(config.COLOR_PAGE_BG)
+        for y_off, opacity, duration in ((0, 0.25, 7.0), (3, 0.50, 10.0),
+                                         (5, 0.75, 13.0), (7, 1.00, 20.0)):
+            phase = (self._t / duration) % 1.0
+            x_units = 48.0 - 90.0 + phase * 175.0
+            color = QColor(page)
+            color.setAlphaF(opacity)
+            painter.save()
+            painter.translate(0, top - 20.0 * sy)
+            painter.scale(sx, sy)
+            painter.translate(x_units, y_off)
             painter.setBrush(color)
-            path = QPainterPath()
-            path.moveTo(0, h)
-            path.lineTo(0, y0)
-            step = w / 4.0
-            up = not flip
-            x = 0.0
-            for _ in range(4):
-                cy = y0 - amp if up else y0 + amp
-                path.quadTo(x + step / 2, cy, x + step, y0)
-                up = not up
-                x += step
-            path.lineTo(w, h)
-            path.closeSubpath()
-            painter.drawPath(path)
+            painter.setPen(Qt.NoPen)
+            painter.drawPath(base_path)
+            painter.restore()
         painter.end()
+
+
+class CollapsibleBox(QWidget):
+    """Settings card with a clickable header that collapses its content"""
+
+    def __init__(self, title, parent=None):
+        super().__init__(parent)
+        self.setObjectName("collapsibleBox")
+        self.setAttribute(Qt.WA_StyledBackground, True)
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(8, 4, 8, 8)
+        outer.setSpacing(2)
+
+        self.toggle_button = QToolButton()
+        self.toggle_button.setText(title)
+        self.toggle_button.setCheckable(True)
+        self.toggle_button.setChecked(True)
+        self.toggle_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.toggle_button.setArrowType(Qt.DownArrow)
+        self.toggle_button.setCursor(Qt.PointingHandCursor)
+        self.toggle_button.clicked.connect(self._on_toggled)
+        outer.addWidget(self.toggle_button)
+
+        self.content = QWidget()
+        outer.addWidget(self.content)
+
+        self.apply_theme()
+
+    def _on_toggled(self):
+        expanded = self.toggle_button.isChecked()
+        self.toggle_button.setArrowType(Qt.DownArrow if expanded else Qt.RightArrow)
+        self.content.setVisible(expanded)
+
+    def set_expanded(self, expanded):
+        self.toggle_button.setChecked(bool(expanded))
+        self._on_toggled()
+
+    def is_expanded(self):
+        return self.toggle_button.isChecked()
+
+    def setTitle(self, title):
+        self.toggle_button.setText(title)
+
+    def setContentLayout(self, layout):
+        self.content.setLayout(layout)
+
+    def apply_theme(self):
+        self.setStyleSheet(
+            f"#collapsibleBox {{ background-color: {config.COLOR_CARD_BG}; "
+            f"border: 1px solid {config.COLOR_CARD_BORDER}; border-radius: 12px; }}")
+        self.toggle_button.setStyleSheet(
+            f"QToolButton {{ border: none; background: transparent; "
+            f"color: {config.COLOR_BTN_TEXT}; font-weight: 600; font-size: 9pt; "
+            "padding: 4px 2px; }")
 
 
 class ShadowGroupBox(QGroupBox):

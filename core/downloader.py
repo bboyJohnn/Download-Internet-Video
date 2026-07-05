@@ -10,7 +10,7 @@ import traceback
 from PyQt5.QtCore import QThread, pyqtSignal
 
 import config
-from config import yt_dlp, get_js_runtimes, get_js_runtimes_cli
+from config import get_js_runtimes, get_js_runtimes_cli
 
 # Hide console windows of child processes (ffmpeg/yt-dlp) in windowed builds
 _CREATE_NO_WINDOW = 0x08000000 if sys.platform == 'win32' else 0
@@ -151,8 +151,9 @@ class DownloadWorker(QThread):
 
     def _pick_backend(self):
         """Module gives real-time progress; a newer local exe wins over an
-        older built-in module (exe builds get yt-dlp updates this way)"""
-        module_ok = config.YTDLP_MODULE and yt_dlp
+        older built-in module (exe builds get yt-dlp updates this way).
+        The heavy yt_dlp import happens HERE, inside the worker thread."""
+        module_ok = config.get_yt_dlp() is not None
         exe_ok = config.YTDLP_EXE and os.path.exists(config.YTDLP_EXE)
         if module_ok and exe_ok:
             try:
@@ -442,6 +443,7 @@ class DownloadWorker(QThread):
 
     def _run_module_download(self, ydl_opts):
         """Single download attempt via the yt_dlp module"""
+        yt_dlp = config.get_yt_dlp()
         start_time = time.time()
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(self.url, download=False)
@@ -642,6 +644,7 @@ class DownloadWorker(QThread):
             except Exception as e:
                 self.log_signal.emit(f"External yt-dlp list error: {e}")
 
+        yt_dlp = config.get_yt_dlp()
         if yt_dlp:
             try:
                 ydl_opts = {'skip_download': True, 'js_runtimes': get_js_runtimes()}
@@ -687,7 +690,8 @@ class PlaylistProbeWorker(QThread):
 
     def run(self):
         try:
-            if not (config.YTDLP_MODULE and yt_dlp):
+            yt_dlp = config.get_yt_dlp()
+            if yt_dlp is None:
                 raise RuntimeError('yt-dlp Python module is not available')
 
             opts = {

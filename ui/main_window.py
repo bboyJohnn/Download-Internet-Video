@@ -13,14 +13,15 @@ from PyQt5.QtWidgets import (
     QTextEdit, QSlider, QGroupBox, QScrollArea, QFrame, QSpinBox,
     QColorDialog, QProgressDialog
 )
-from PyQt5.QtCore import Qt, QSettings, QTimer, QObject, pyqtSignal, QUrl
+from PyQt5.QtCore import Qt, QSettings, QTimer, QObject, pyqtSignal, QUrl, QEvent
 from PyQt5.QtGui import QFont, QIcon, QTextCursor, QColor, QDesktopServices
 
 import config
 from config import APP_TITLE
 from core.downloader import DownloadWorker, PlaylistProbeWorker
 from core.tools import check_and_install_tools
-from ui.widgets import DownloadItemWidget, ShadowGroupBox, WaveWidget
+from ui.widgets import (DownloadItemWidget, ShadowGroupBox, BannerWidget,
+                        CollapsibleBox)
 
 
 class EmittingStream(QObject):
@@ -77,11 +78,11 @@ class YouTubeDownloader(QMainWindow):
         self.main_layout.setSpacing(6)
         self.main_layout.setContentsMargins(10, 10, 10, 6)
 
-        self.title_label = QLabel(APP_TITLE)
-        self.title_label.setStyleSheet(
-            f"font-size: 17px; font-weight: 700; color: {config.COLOR_TEXT}; padding: 2px;")
-        self.title_label.setAlignment(Qt.AlignCenter)
-        self.main_layout.addWidget(self.title_label)
+        # Site-style banner: the title on a colored 'picture' with gentle
+        # waves along its bottom edge; the tab buttons sit at the waves' foot
+        self.banner = BannerWidget(APP_TITLE)
+        self.banner.set_animated(self.settings.value("wave_anim", True, type=bool))
+        self.main_layout.addWidget(self.banner)
 
         self.common_group = ShadowGroupBox(self.tr("Common Settings"))
         common_layout = QGridLayout(self.common_group)
@@ -107,15 +108,14 @@ class YouTubeDownloader(QMainWindow):
 
         common_layout.addLayout(url_layout, 0, 1, 1, 2)
 
-        self.main_layout.addWidget(self.common_group)
-
-        # Decorative waves like on the reference site: the page 'dives' into
-        # the darker bottom of the window gradient
-        self.wave = WaveWidget(height=38)
-        self.main_layout.addWidget(self.wave)
-
+        # The tab buttons come right below the banner waves; the shared Link
+        # card lives inside the Video/Audio pages (moved on tab switch)
         self.tabs = QTabWidget()
         self.main_layout.addWidget(self.tabs)
+        self.tabs.currentChanged.connect(self.banner.splash)
+        self.tabs.currentChanged.connect(self._place_common_group)
+
+        self._sections = []  # collapsible settings cards
 
         # Video Tab
         self._setup_video_tab()
@@ -128,6 +128,9 @@ class YouTubeDownloader(QMainWindow):
 
         # Settings Tab
         self._setup_settings_tab()
+
+        # The shared Link card starts on the Video page
+        self.video_tab_layout.insertWidget(0, self.common_group)
 
         # Footer: project links
         footer_layout = QHBoxLayout()
@@ -179,6 +182,32 @@ class YouTubeDownloader(QMainWindow):
 
         # Check tools after the window is shown (non-blocking startup)
         QTimer.singleShot(0, self._startup_tool_check)
+
+        # Pre-load the heavy yt_dlp module in the background so the first
+        # download starts instantly while startup itself stays fast
+        QTimer.singleShot(1200, self._warmup_ytdlp)
+
+    def _place_common_group(self, index):
+        """Move the shared Link card into the currently shown Video/Audio page"""
+        target = {0: getattr(self, "video_tab_layout", None),
+                  1: getattr(self, "audio_tab_layout", None)}.get(index)
+        if target is not None and target.indexOf(self.common_group) == -1:
+            target.insertWidget(0, self.common_group)
+            self.common_group.show()
+
+    def _warmup_ytdlp(self):
+        """Import the heavy yt_dlp module in the background after startup"""
+        import threading
+        threading.Thread(target=config.get_yt_dlp, daemon=True).start()
+
+    def _make_section(self, key, title):
+        """Collapsible settings card whose open/closed state is remembered"""
+        box = CollapsibleBox(title)
+        box.set_expanded(self.settings.value(f"section_{key}", True, type=bool))
+        box.toggle_button.clicked.connect(
+            lambda _, k=key, b=box: self.settings.setValue(f"section_{k}", b.is_expanded()))
+        self._sections.append(box)
+        return box
 
     def _populate_browser_combo(self, combo):
         """Fill a cookies combo; item data is language-independent"""
@@ -245,6 +274,7 @@ class YouTubeDownloader(QMainWindow):
         video_layout = QVBoxLayout(video_tab)
         video_layout.setSpacing(10)
         video_layout.setContentsMargins(10, 10, 10, 10)
+        self.video_tab_layout = video_layout
 
         self.video_settings_group = ShadowGroupBox(self.tr("Video Settings"))
         video_settings_layout = QHBoxLayout(self.video_settings_group)
@@ -309,6 +339,7 @@ class YouTubeDownloader(QMainWindow):
         audio_layout = QVBoxLayout(audio_tab)
         audio_layout.setSpacing(10)
         audio_layout.setContentsMargins(10, 10, 10, 10)
+        self.audio_tab_layout = audio_layout
 
         self.audio_settings_group = ShadowGroupBox(self.tr("Audio Settings"))
         audio_settings_layout = QHBoxLayout(self.audio_settings_group)
@@ -407,9 +438,10 @@ class YouTubeDownloader(QMainWindow):
         settings_layout.setContentsMargins(10, 10, 10, 10)
         settings_layout.setSpacing(8)
 
-        self.dir_group = ShadowGroupBox(self.tr("Download Folder"))
-        dir_layout = QGridLayout(self.dir_group)
+        self.dir_group = self._make_section("folder", self.tr("Download Folder"))
+        dir_layout = QGridLayout()
         dir_layout.setSpacing(8)
+        dir_layout.setContentsMargins(6, 4, 6, 4)
 
         self.default_folder_label = QLabel(self.tr("Default Folder:"))
         dir_layout.addWidget(self.default_folder_label, 0, 0)
@@ -424,12 +456,13 @@ class YouTubeDownloader(QMainWindow):
         self.default_dir_button.clicked.connect(self.select_default_directory)
         dir_layout.addWidget(self.default_dir_button, 0, 2)
 
+        self.dir_group.setContentLayout(dir_layout)
         settings_layout.addWidget(self.dir_group)
 
         # Download queue: sequential or parallel with a limit
-        self.downloads_group = ShadowGroupBox(self.tr("Downloads"))
-        dlmode_layout = QHBoxLayout(self.downloads_group)
-        dlmode_layout.setContentsMargins(14, 20, 14, 14)
+        self.downloads_group = self._make_section("downloads", self.tr("Downloads"))
+        dlmode_layout = QHBoxLayout()
+        dlmode_layout.setContentsMargins(6, 4, 6, 4)
         dlmode_layout.setSpacing(10)
 
         self.dlmode_label = QLabel(self.tr("Mode:"))
@@ -455,12 +488,13 @@ class YouTubeDownloader(QMainWindow):
         dlmode_layout.addStretch()
         self.parallel_spin.setEnabled(self.dlmode_combo.currentData() == "parallel")
 
+        self.downloads_group.setContentLayout(dlmode_layout)
         settings_layout.addWidget(self.downloads_group)
 
         # Cookies file (used when a Cookies combo is set to "From file")
-        self.cookies_group = ShadowGroupBox(self.tr("Cookies file"))
-        cookies_layout = QHBoxLayout(self.cookies_group)
-        cookies_layout.setContentsMargins(14, 20, 14, 14)
+        self.cookies_group = self._make_section("cookies", self.tr("Cookies file"))
+        cookies_layout = QHBoxLayout()
+        cookies_layout.setContentsMargins(6, 4, 6, 4)
         cookies_layout.setSpacing(8)
 
         self.cookies_file_input = QLineEdit(self.cookies_file)
@@ -477,10 +511,12 @@ class YouTubeDownloader(QMainWindow):
         self.cookies_reset_btn.clicked.connect(self._reset_cookies_file)
         cookies_layout.addWidget(self.cookies_reset_btn)
 
+        self.cookies_group.setContentLayout(cookies_layout)
         settings_layout.addWidget(self.cookies_group)
 
-        self.notifications_group = ShadowGroupBox(self.tr("Notifications"))
-        notifications_layout = QVBoxLayout(self.notifications_group)
+        self.notifications_group = self._make_section("notifications", self.tr("Notifications"))
+        notifications_layout = QVBoxLayout()
+        notifications_layout.setContentsMargins(6, 4, 6, 4)
 
         self.notifications_check = QCheckBox(self.tr("Show download completion notifications"))
         self.notifications_check.setChecked(True)
@@ -492,12 +528,14 @@ class YouTubeDownloader(QMainWindow):
         self.sound_notifications_check.setFont(self.CACHED_FONT)
         notifications_layout.addWidget(self.sound_notifications_check)
 
+        self.notifications_group.setContentLayout(notifications_layout)
         settings_layout.addWidget(self.notifications_group)
 
         # Language Settings
-        self.lang_group = ShadowGroupBox(self.tr("Language Settings"))
-        lang_layout = QGridLayout(self.lang_group)
+        self.lang_group = self._make_section("language", self.tr("Language Settings"))
+        lang_layout = QGridLayout()
         lang_layout.setSpacing(8)
+        lang_layout.setContentsMargins(6, 4, 6, 4)
 
         self.interface_lang_label = QLabel(self.tr("Interface Language:"))
         lang_layout.addWidget(self.interface_lang_label, 0, 0)
@@ -525,12 +563,13 @@ class YouTubeDownloader(QMainWindow):
         self.apply_lang_btn.clicked.connect(self.apply_language)
         lang_layout.addWidget(self.apply_lang_btn, 1, 1)
 
+        self.lang_group.setContentLayout(lang_layout)
         settings_layout.addWidget(self.lang_group)
 
-        # Appearance: theme color, saturation and light/dark mode
-        self.theme_group = ShadowGroupBox(self.tr("Appearance"))
-        theme_layout = QGridLayout(self.theme_group)
-        theme_layout.setContentsMargins(14, 20, 14, 14)
+        # Appearance: theme color, saturation, light/dark mode, wave animation
+        self.theme_group = self._make_section("appearance", self.tr("Appearance"))
+        theme_layout = QGridLayout()
+        theme_layout.setContentsMargins(6, 4, 6, 4)
         theme_layout.setHorizontalSpacing(12)
         theme_layout.setVerticalSpacing(10)
         theme_layout.setColumnStretch(1, 1)
@@ -595,6 +634,12 @@ class YouTubeDownloader(QMainWindow):
         self.theme_mode_combo.currentIndexChanged.connect(self._on_theme_mode_changed)
         theme_layout.addWidget(self.theme_mode_combo, 2, 1, Qt.AlignLeft)
 
+        self.wave_anim_check = QCheckBox(self.tr("Animated waves"))
+        self.wave_anim_check.setChecked(self.settings.value("wave_anim", True, type=bool))
+        self.wave_anim_check.stateChanged.connect(self._on_wave_anim_toggled)
+        theme_layout.addWidget(self.wave_anim_check, 3, 1)
+
+        self.theme_group.setContentLayout(theme_layout)
         settings_layout.addWidget(self.theme_group)
 
         # Button to check and install local tools
@@ -629,6 +674,11 @@ class YouTubeDownloader(QMainWindow):
         self.settings.setValue("theme_mode", mode)
         self._apply_theme()
 
+    def _on_wave_anim_toggled(self):
+        animated = self.wave_anim_check.isChecked()
+        self.settings.setValue("wave_anim", animated)
+        self.banner.set_animated(animated)
+
     def _pick_theme_color(self):
         """Advanced color picker (palette, spectrum, hex, screen eyedropper) -
         the picked color is mapped onto the theme hue and saturation"""
@@ -651,8 +701,6 @@ class YouTubeDownloader(QMainWindow):
             group.setStyleSheet(config.STYLESHEET_GROUPBOX)
         self.download_video_btn.setStyleSheet(config.STYLESHEET_BUTTON_PRIMARY)
         self.download_audio_btn.setStyleSheet(config.STYLESHEET_BUTTON_PRIMARY)
-        self.title_label.setStyleSheet(
-            f"font-size: 17px; font-weight: 700; color: {config.COLOR_TEXT}; padding: 2px;")
         for label in (self.quality_label, self.format_label, self.cookies_label,
                       self.audio_format_label, self.audio_cookies_label):
             label.setStyleSheet(config.FIELD_LABEL_STYLE)
@@ -666,7 +714,9 @@ class YouTubeDownloader(QMainWindow):
         self.cookies_reset_btn.setStyleSheet(config.STYLESHEET_BUTTON_DANGER)
         self.github_btn.setStyleSheet(config.STYLESHEET_BUTTON_LINK)
         self.donate_btn.setStyleSheet(config.STYLESHEET_BUTTON_LINK)
-        self.wave.update()
+        self.banner.update()
+        for box in self._sections:
+            box.apply_theme()
         for items in (self.video_items, self.audio_items):
             for _, item_widget in items.values():
                 item_widget.apply_theme()
@@ -793,7 +843,7 @@ class YouTubeDownloader(QMainWindow):
 
             # Update UI text
             self.setWindowTitle(APP_TITLE)
-            self.title_label.setText(APP_TITLE)
+            self.banner.setTitle(APP_TITLE)
 
             self.tabs.setTabText(0, "🎬 " + self.tr("Video"))
             self.tabs.setTabText(1, "🎧 " + self.tr("Audio"))
@@ -854,6 +904,7 @@ class YouTubeDownloader(QMainWindow):
             self.theme_mode_combo.setItemText(0, self.tr("Light"))
             self.theme_mode_combo.setItemText(1, self.tr("Dark"))
             self.theme_mode_combo.setItemText(2, self.tr("System"))
+            self.wave_anim_check.setText(self.tr("Animated waves"))
             self.color_pick_btn.setToolTip(self.tr("Pick color..."))
             self.interface_lang_label.setText(self.tr("Interface Language:"))
             self.apply_lang_btn.setText(self.tr("Apply"))

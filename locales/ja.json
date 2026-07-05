@@ -126,5 +126,6 @@
     "Download selected": "選択をダウンロード",
     "Selected:": "選択済み：",
     "Fetching video list...": "動画リストを取得中...",
-    "Failed to get video list": "動画リストを取得できませんでした"
+    "Failed to get video list": "動画リストを取得できませんでした",
+    "Animated waves": "波のアニメーション"
 }

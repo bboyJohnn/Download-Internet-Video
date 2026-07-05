@@ -248,7 +248,7 @@ class ToolUpdateThread(QThread):
         if self.force or (latest_yt and (not cur_exe or version_tuple(cur_exe) < version_tuple(latest_yt))):
             plan.append(('yt-dlp.exe', self._update_ytdlp_exe))
 
-        if not getattr(sys, 'frozen', False) and config.YTDLP_MODULE:
+        if not getattr(sys, 'frozen', False) and config.ytdlp_module_available():
             cur_mod = local_ytdlp_module_version()
             self._log_versions('yt-dlp module', cur_mod, latest_yt)
             if self.force or (latest_yt and (not cur_mod or version_tuple(cur_mod) < version_tuple(latest_yt))):

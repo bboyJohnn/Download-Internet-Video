@@ -607,14 +607,35 @@ def set_hue(hue):
 # Build the default theme at import time
 set_theme()
 
-# Try to import yt_dlp module (bundled into the exe builds; gives real-time
-# progress reporting). yt-dlp.exe next to the app is used as a fallback.
-try:
-    import yt_dlp
-    YTDLP_MODULE = True
-except Exception:
-    yt_dlp = None
-    YTDLP_MODULE = False
+# The yt_dlp module is HEAVY to import (~1 s), so it is loaded lazily on
+# first use - in a worker thread, never blocking application startup.
+yt_dlp = None
+YTDLP_MODULE = None  # None = not tried yet; True/False once known
+
+
+def get_yt_dlp():
+    """Import the yt_dlp module on first use and cache it"""
+    global yt_dlp, YTDLP_MODULE
+    if YTDLP_MODULE is None:
+        try:
+            import yt_dlp as _module
+            yt_dlp = _module
+            YTDLP_MODULE = True
+        except Exception:
+            yt_dlp = None
+            YTDLP_MODULE = False
+    return yt_dlp
+
+
+def ytdlp_module_available():
+    """Cheap check that the yt_dlp module CAN be imported (no actual import)"""
+    if YTDLP_MODULE is not None:
+        return YTDLP_MODULE
+    import importlib.util
+    try:
+        return importlib.util.find_spec('yt_dlp') is not None
+    except Exception:
+        return False
 
 
 def get_js_runtimes():
@@ -633,7 +654,7 @@ def get_js_runtimes_cli():
 
 def ensure_ytdlp():
     """Ensure yt-dlp is available (as module or exe)"""
-    if YTDLP_MODULE and yt_dlp:
+    if ytdlp_module_available():
         return True
     if YTDLP_EXE and os.path.exists(YTDLP_EXE):
         return True
